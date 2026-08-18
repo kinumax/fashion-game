@@ -1,9 +1,17 @@
-# NEON BEAT STAR — Structure
+# Structure
 
-`client/src/App.tsx`はルートとテーマの薄い殻だけを持つ。`client/src/pages/Home.tsx`がゲーム画面を保持し、`client/src/components/RhythmGame.tsx`がHUD、入力パッド、Canvasを統合する。譜面時計・判定・音・描画は`client/src/game/`に分け、Reactの状態管理と結合しすぎない。
+## React layer
 
-- `game/chart.ts`: 難易度ごとの譜面生成とノーツ型。
-- `game/audio.ts`: Web Audio APIの初期化、ビート、ヒット音。
-- `game/rhythmEngine.ts`: ノーツ時計、入力判定、スコア・コンボ・結果。
-- `components/RhythmGame.tsx`: Canvas描画、pointer/keyboard入力、画面状態、HUD。
-- `index.css`: Starlit Pulseのトークン、モバイル縦画面、アクセシビリティ。
+`client/src/App.tsx` はフルスクリーンの `GameCanvas` のみを表示する。Reactはゲームのフレームとして機能し、HUDの固定表示やスタート／リスタートUIだけを受け持つ。
+
+## Game layer
+
+`client/src/game/scene.ts` はBabylon.jsのシーンとゲームハンドルを生成する。ゲームロジックはReactから分離し、`GameWorld`、`Player`、`ObstacleManager`、`CollectibleManager`、`CityTheme` をプレーンなTypeScriptクラスまたは関数として配置する。
+
+## Rendering
+
+Babylon.jsのOrthographicCameraで2Dに近い横スクロール表現を作り、背景とゲームオブジェクトを平面メッシュに描画する。生成アセットはWebDevのmanus-storage URLをテクスチャとして利用する。
+
+## Input
+
+ポインター入力をcanvasに登録し、タップでジャンプ、左右スワイプでレーン変更、下部の画面ボタンでも同じ操作を提供する。キーボードのSpaceとArrowLeft／ArrowRightも用意する。

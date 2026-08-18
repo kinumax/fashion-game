@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/frw_splash_background" />
+    <item android:gravity="center">
+        <shape android:shape="oval">
+            <size android:width="220dp" android:height="220dp" />
+            <solid android:color="@color/frw_splash_blue" />
+            <stroke android:width="8dp" android:color="@color/frw_splash_lime" />
+        </shape>
+    </item>
+    <item android:gravity="center">
+        <bitmap android:src="@drawable/ic_frw_mark" android:gravity="center" />
+    </item>
+</layer-list>

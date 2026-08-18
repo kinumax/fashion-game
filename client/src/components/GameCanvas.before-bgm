@@ -1,0 +1,233 @@
+/* Design philosophy: Continental Editorial — a fashion-editorial frame around a detailed sculptural platformer. */
+import { useEffect, useRef, useState } from "react";
+import { createGameScene, GameSnapshot, PopupEvent } from "@/game/scene";
+
+type Popup = { id: number; value: number; x: number; y: number; kind: PopupEvent["kind"]; t: number };
+const initialSnapshot: GameSnapshot = { score: 0, city: "NEW YORK", progress: 0, running: false, gameOver: false, finished: false, combo: 0, lives: 3, checkpoint: false, outfit: 0, jumpBoost: false, speedBoost: false, bagAmmo: 99, shoeAmmo: 99, highScore: Number(localStorage.getItem("frw-high") || "0"), flyFuel: 0, hasWings: false, crouching: false, partyCount: 1, collection: 0 };
+
+export default function GameCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const engineStarted = useRef(false);
+  const [snapshot, setSnapshot] = useState<GameSnapshot>(initialSnapshot);
+  const [joystickX, setJoystickX] = useState(0);
+  const [popups, setPopups] = useState<Popup[]>([]);
+  const popupId = useRef(0);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const prevComboRef = useRef(0);
+  const [comboBurst, setComboBurst] = useState(0);
+  const [scoreFlash, setScoreFlash] = useState(0);
+  const prevScoreRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || engineStarted.current) return;
+    engineStarted.current = true;
+    let disposed = false;
+    let handle: Awaited<ReturnType<typeof createGameScene>> | undefined;
+    const onPopup = (ev: PopupEvent) => {
+      popupId.current += 1;
+      const id = popupId.current;
+      setPopups((p) => [...p, { id, value: ev.value, x: ev.x, y: ev.y, kind: ev.kind, t: performance.now() }]);
+      window.setTimeout(() => setPopups((p) => p.filter((pp) => pp.id !== id)), 1100);
+    };
+    createGameScene(canvas, (next: GameSnapshot) => {
+      if (!disposed) {
+        if (next.combo > prevComboRef.current) setComboBurst((c) => c + 1);
+        if (next.score > prevScoreRef.current + 99) setScoreFlash((f) => f + 1);
+        prevComboRef.current = next.combo;
+        prevScoreRef.current = next.score;
+        setSnapshot(next);
+      }
+    }, onPopup).then((created) => { handle = created; if (disposed) created.dispose(); });
+    return () => { disposed = true; handle?.dispose(); engineStarted.current = false; };
+  }, []);
+  const event = (name: string, detail?: unknown) => window.dispatchEvent(detail === undefined ? new Event(name) : new CustomEvent(name, { detail }));
+  const jump = () => event("frw:jump");
+  const jumpDown = () => event("frw:jump-down");
+  const jumpUp = () => event("frw:jump-up");
+  const dash = () => event("frw:dash");
+  const attack = () => event("frw:attack");
+  const attackDown = () => event("frw:attack-down");
+  const attackUp = () => event("frw:attack-up");
+  const kick = () => event("frw:kick");
+  const kickDown = () => event("frw:kick-down");
+  const kickUp = () => event("frw:kick-up");
+  const move = (direction: -1 | 1) => event("frw:lane", direction);
+  const restart = () => event("frw:restart");
+  const crouchDown = () => event("frw:crouch-down");
+  const crouchUp = () => event("frw:crouch-up");
+  const joystickActive = useRef(false);
+  const updateJoystick = (ev: React.PointerEvent<HTMLDivElement>) => {
+    const rect = ev.currentTarget.getBoundingClientRect();
+    const x = Math.max(-1, Math.min(1, ((ev.clientX - rect.left) / rect.width - 0.5) * 2));
+    setJoystickX(x); if (Math.abs(x) > 0.18) move(x < 0 ? -1 : 1);
+  };
+  const startJoystick = (ev: React.PointerEvent<HTMLDivElement>) => { joystickActive.current = true; ev.currentTarget.setPointerCapture?.(ev.pointerId); updateJoystick(ev); };
+  const moveJoystick = (ev: React.PointerEvent<HTMLDivElement>) => { if (joystickActive.current) updateJoystick(ev); };
+  const endJoystick = (ev: React.PointerEvent<HTMLDivElement>) => { joystickActive.current = false; setJoystickX(0); ev.currentTarget.releasePointerCapture?.(ev.pointerId); };
+  const gameOver = snapshot.gameOver && !snapshot.running;
+  const finishedRun = snapshot.finished && !snapshot.running;
+  const introShown = !snapshot.running && !gameOver && !finishedRun;
+  const progressPct = Math.max(3, snapshot.progress * 100);
+  const isHighScoreRun = snapshot.score > 0 && snapshot.score >= snapshot.highScore - 1 && snapshot.highScore > 0;
+
+  return (
+    <main ref={shellRef} className="game-shell" data-city={snapshot.city.replace(" ", "_")}>
+      <canvas ref={canvasRef} className="game-canvas" aria-label="Fashion Runway Worlds game canvas" />
+      <div className="game-grain" aria-hidden="true" />
+      <div className="vignette" aria-hidden="true" />
+      <div key={`cb-${comboBurst}`} className={`combo-burst ${snapshot.combo >= 10 ? "big" : snapshot.combo >= 5 ? "mid" : ""}`} style={{ display: snapshot.combo > 0 ? "block" : "none" }}>
+        {snapshot.combo >= 5 && <span className="combo-label">COMBO</span>}
+        <strong className="combo-num">x{snapshot.combo}</strong>
+      </div>
+
+      <header className="hud-top">
+        <div className="brand-lockup">
+          <span className="brand-mark">FRW</span>
+          <span className="brand-caption">FASHION<br />RUNWAY<br />WORLDS</span>
+        </div>
+        <div className="hud-city-wrap">
+          <div className="hud-city">{snapshot.city}</div>
+          <div className="hud-high">HI <b>{String(snapshot.highScore).padStart(5, "0")}</b></div>
+        </div>
+        <div className={`hud-score ${scoreFlash !== 0 ? "flash" : ""}`} key={`sf-${scoreFlash}`}>
+          <span>SCORE</span>
+          <strong>{String(snapshot.score).padStart(5, "0")}</strong>
+          {isHighScoreRun && snapshot.running && <em className="new-record">NEW RECORD</em>}
+        </div>
+      </header>
+
+      <div className="hud-secondary">
+        <span className="hud-lives">LIVES <b>{"◆".repeat(Math.max(0, snapshot.lives))}{snapshot.lives <= 0 && "—"}</b></span>
+        <span className="hud-combo">COMBO <b>x{snapshot.combo}</b></span>
+        <span className="hud-party">PARTY <b>{snapshot.partyCount}/4</b></span>
+        {snapshot.jumpBoost && <span className="hud-check boost-j">HIGH JUMP ↑</span>}
+        {snapshot.speedBoost && <span className="hud-check boost-s">FAST SHOES »</span>}
+        <span className="hud-check boost-b">BAG ∞</span>
+        <span className="hud-check boost-sh">SHOE ∞</span>
+        {snapshot.hasWings && <span className="hud-check boost-w">WINGS ✈</span>}
+        {snapshot.crouching && <span className="hud-check boost-cr">CROUCH ↓</span>}
+        {snapshot.checkpoint && <span className="hud-check boost-cp">CHECKPOINT ✓</span>}
+      </div>
+      <div className={`fly-meter ${snapshot.hasWings ? "visible" : ""}`}><span style={{ width: `${Math.max(0, Math.min(1, snapshot.flyFuel)) * 100}%` }} /></div>
+      <div className="hud-progress"><span style={{ width: `${progressPct}%` }} /><em /></div>
+
+      <div className="popup-layer" aria-hidden="true">
+        {popups.map((p) => {
+          const age = (performance.now() - p.t) / 1100;
+          const leftBase = 6 + (p.x / 250) * 88;
+          const topBase = 52 - (p.y / 6) * 46;
+          const left = `${leftBase}%`;
+          const top = `${topBase - age * 18}%`;
+          const op = Math.max(0, 1 - age);
+          const scale = 1 + age * 0.4;
+          const cls = `popup popup-${p.kind}`;
+          return (
+            <div key={p.id} className={cls} style={{ left, top, opacity: op, transform: `translate(-50%, -50%) scale(${scale})` }}>
+              {p.kind === "combo" && <small>COMBO</small>}
+              {p.kind === "checkpoint" && <small>CHECKPOINT</small>}
+              {p.kind === "power" && <small>POWER</small>}
+              {p.kind === "wings" && <small>WINGS</small>}
+              {p.kind === "rescue" && <small>RESCUED!</small>}
+              <strong>{p.kind === "rescue" ? `+${p.value.toLocaleString()}` : `+${p.value.toLocaleString()}`}</strong>
+            </div>
+          );
+        })}
+      </div>
+
+      {introShown && (
+        <section className="start-card intro">
+          <p className="eyebrow">A SCULPTURE PLATFORMER · 4 CITIES · RESCUE 3 ALLIES</p>
+          <h1>WEAR THE CITY.</h1>
+          <p>年輪を集め、囚われた女友達を救出し、4人で4つの都市のランウェイゲートまで走り抜ける。<br /><b>NY → MILANO → PARIS → TOKYO</b></p>
+          <div className="controls-hint-grid">
+            <div><kbd>SPACE</kbd> JUMP ×2 (HOLD FOR FLY)</div>
+            <div><kbd>← →</kbd> MOVE</div>
+            <div><kbd>SHIFT</kbd> DASH</div>
+            <div><kbd>S / ↓</kbd> CROUCH</div>
+            <div><kbd>HOLD X / Z</kbd> RAPID BAG FIRE</div>
+            <div><kbd>HOLD C / V / K</kbd> RAPID SHOE FIRE</div>
+            <div><kbd>TOUCH CAGES</kbd> RESCUE FRIENDS</div>
+            <div><kbd>WING ITEM</kbd> HOLD JUMP TO GLIDE</div>
+          </div>
+          <button onClick={() => event("frw:start")}>START RUN</button>
+          {snapshot.highScore > 0 && <div className="high-card">BEST SCORE <b>{snapshot.highScore.toLocaleString()}</b></div>}
+        </section>
+      )}
+      {(gameOver || finishedRun) && (
+        <section className={`start-card game-over-card ${finishedRun ? "win" : ""}`}>
+          <p className="eyebrow">{finishedRun ? (snapshot.collection >= 3 ? "FASHION TOUR COMPLETE" : "LOOK COMPLETE") : "RUNWAY PAUSED"}</p>
+          <h1>{finishedRun ? (snapshot.collection >= 3 ? "ALL CITIES CLEARED." : "NEXT LOOK.") : "RESET THE LOOK."}</h1>
+          <p>スコア <b>{snapshot.score.toLocaleString()}</b>。{finishedRun ? `${snapshot.partyCount}人のパーティで${snapshot.city}をクリア！${snapshot.collection >= 3 ? "4都市コンプリート、おめでとう！" : "新しいモデルと衣装を選んで次の都市へ。"}` : "足場を読み、もう一度挑戦しよう。"}</p>
+          <div className="result-grid">
+            <div><span>PROGRESS</span><b>{Math.round(snapshot.progress * 100)}%</b></div>
+            <div><span>BEST</span><b>{snapshot.highScore.toLocaleString()}</b></div>
+            <div><span>CITY</span><b>{snapshot.city}</b></div>
+            <div><span>PARTY</span><b>{snapshot.partyCount}/4</b></div>
+            <div><span>MAX COMBO</span><b>x{Math.max(snapshot.combo, 0)}</b></div>
+          </div>
+          {finishedRun && snapshot.collection < 3 && (
+            <div className="wardrobe-picker">
+              <button className={snapshot.outfit === 0 ? "wardrobe-option active" : "wardrobe-option"} onClick={() => event("frw:select-outfit", 0)}>NOIR / 01</button>
+              <button className={snapshot.outfit === 1 ? "wardrobe-option active" : "wardrobe-option"} onClick={() => event("frw:select-outfit", 1)}>SCARLET / 02</button>
+              <button className={snapshot.outfit === 2 ? "wardrobe-option active" : "wardrobe-option"} onClick={() => event("frw:select-outfit", 2)}>COBALT / 03</button>
+            </div>
+          )}
+          <button onClick={restart}>{finishedRun ? (snapshot.collection >= 3 ? "NEW TOUR" : "NEXT RUN") : "RESTART"}</button>
+        </section>
+      )}
+
+      <div className="city-stamp" aria-hidden="true">
+        <span>{snapshot.city}</span>
+        <small>COLLECTION {String(snapshot.collection + 1).padStart(2, "0")} / 04</small>
+      </div>
+
+      <div className="touch-controls" aria-label="Game controls">
+        <div className="joystick" role="application" aria-label="Move with joystick" onPointerDown={startJoystick} onPointerMove={moveJoystick} onPointerUp={endJoystick} onPointerCancel={endJoystick}>
+          <span className="joystick-ring" />
+          <span className="joystick-knob" style={{ transform: `translateX(${joystickX * 22}px)` }} />
+        </div>
+        <div className="control-cluster-left">
+          <button
+            className="control-button control-crouch"
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); crouchDown(); }}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture?.(e.pointerId); crouchUp(); }}
+            onPointerCancel={() => crouchUp()}
+            onPointerLeave={() => crouchUp()}
+            aria-label="Crouch"
+          >CROUCH</button>
+          <button className="control-button control-dash" onClick={dash} aria-label="Dash">DASH</button>
+        </div>
+        <div className="control-cluster-right">
+          <button
+            className="control-button control-attack"
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); attackDown(); }}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture?.(e.pointerId); attackUp(); }}
+            onPointerCancel={attackUp}
+            onPointerLeave={attackUp}
+            onClick={attack}
+            aria-label="Hold to throw handbags"
+          >BAG</button>
+          <button
+            className="control-button control-kick"
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); kickDown(); }}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture?.(e.pointerId); kickUp(); }}
+            onPointerCancel={kickUp}
+            onPointerLeave={kickUp}
+            onClick={kick}
+            aria-label="Hold to kick shoes"
+          >SHOE</button>
+          <button
+            className="control-button control-jump"
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); jumpDown(); }}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture?.(e.pointerId); jumpUp(); }}
+            onPointerCancel={() => jumpUp()}
+            onPointerLeave={() => jumpUp()}
+            aria-label="Jump"
+          >JUMP</button>
+        </div>
+      </div>
+      <p className="control-hint">DRAG JOYSTICK · HOLD JUMP TO FLY · HOLD BAG/SHOE TO ATTACK · CROUCH · DASH · RESCUE FRIENDS · MOBILE FRIENDLY</p>
+    </main>
+  );
+}
