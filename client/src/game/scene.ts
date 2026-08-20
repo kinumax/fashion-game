@@ -977,11 +977,11 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
     jumpBuffer = 0.12;
     if (jumps === 0 || coyoteTime > 0) {
       vy = jumpBoostTimer > 0 ? 12.8 : 10.8;
-      jumps = 1; spinActive = false; coyoteTime = 0;
+      jumps = 1; spinActive = false; lastLanded = false; coyoteTime = 0;
       spawnParticles(x, y - 1.6, 10, "dust", 1.3, 0.1, 0.55, -4, 2.2);
       shakeBurst(0.05, 0.12);
-    } else if (jumps === 1 && stageIndex() >= 2) {
-      // The first two stages teach a single grounded jump. Double-jump remains available in advanced modes.
+    } else if (jumps === 1) {
+      // Press jump again while airborne: perform a second jump with an aerial spin.
       vy = jumpBoostTimer > 0 ? 10.6 : 8.8;
       jumps = 2; spinActive = true; spin = 0; coyoteTime = 0;
       spawnParticles(x, y - 0.3, 14, "chart", 1.8, 0.09, 0.7, -6, 3.5);
@@ -1308,11 +1308,11 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
     playerRoot.position.y += renderBob - landingPulse * 0.045;
     playerRoot.scaling.x = (0.88 + collectionIndex * 0.07) * (1 + landingPulse * 0.08);
     playerRoot.scaling.y = (0.88 + collectionIndex * 0.07) * (1 - landingPulse * 0.1);
-    if (!landed && spinActive && Math.abs(vy) > 0.2) {
+    if (!landed && spinActive) {
       const turnDirection = Math.sign(vx || lastInputDirection || 1);
       spin += dt * turnDirection * (vy > 0 ? 10.2 : 7.8);
       playerRoot.rotation.z = spin;
-    } else { spin = 0; playerRoot.rotation.z = 0; }
+    } else if (landed) { spin = 0; playerRoot.rotation.z = 0; }
         playerRoot.rotation.y = vx > 8 ? -0.08 : 0.02;
     // Keep the high-density hero plate physically readable: shoulder-led sway, landing compression, and flight lean.
     const heroMotion = Math.sin(runCycle * 0.5) * 0.018 + Math.max(-0.08, Math.min(0.08, -vx * 0.004)) + (flying ? -0.055 : 0);
