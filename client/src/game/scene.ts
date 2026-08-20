@@ -30,13 +30,14 @@ export type PopupEvent = { value: number; x: number; y: number; kind: "coin" | "
 
 type Platform = { mesh: Mesh; x: number; y: number; w: number; h: number; moving?: boolean; baseX?: number; phase?: number };
 type WebAnchor = { mesh: Mesh; x: number; y: number; active: boolean };
-type Enemy = { mesh: Mesh; x: number; y: number; w: number; h: number; vx: number; vy: number; kind: "crow" | "bat" | "hedgehog" | "drone"; baseX?: number; baseY?: number; phase?: number; dead?: boolean; hp?: number; maxHp?: number; isBoss?: boolean; };
+type Enemy = { mesh: Mesh; x: number; y: number; w: number; h: number; vx: number; vy: number; kind: "crow" | "bat" | "hedgehog" | "drone"; baseX?: number; baseY?: number; phase?: number; dead?: boolean; hp?: number; maxHp?: number; isBoss?: boolean; spritePlate?: Mesh; spriteMaterial?: StandardMaterial; spriteTextures?: Record<string, Texture>; };
 type Coin = { mesh: Mesh; x: number; y: number; taken: boolean; baseY: number; phase: number };
 type PowerItem = { mesh: Mesh; x: number; y: number; kind: "bag" | "shoe" | "wings"; taken: boolean; baseY: number; phase: number };
 type Projectile = { mesh: Mesh; x: number; y: number; vx: number; vy: number; active: boolean; kind: "bag" | "shoe"; gravity?: number; owner: "player" | "ally"; targetX?: number; targetY?: number };
 type Particle = { mesh: Mesh; x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number; gravity: number };
 type Ally = {
   root: TransformNode; body: Mesh; head: Mesh; hair: Mesh; saved: boolean; x: number; y: number; vx: number; vy: number;
+  spritePlate?: Mesh; spriteMaterial?: StandardMaterial; spriteTextures?: Record<string, Texture>;
   targetX: number; offset: number; phase: number; color: string; hairColor: string; shoeColor: string;
   cage?: { root: TransformNode; bars: Mesh[]; x: number; y: number };
   lastShot: number; name: string;
@@ -46,6 +47,17 @@ const ASSETS = {
   background: "/manus-storage/fashion-runway-stage-realistic_033f52bb.png",
   enemySheet: "/manus-storage/fashion-enemy-hunter-realistic_56a6869b.png",
   propSheet: "/manus-storage/fashion-props-realistic_f7f71a1b.png",
+  // Cleaned character sprites are local assets so Web and Android use the same files after build/sync.
+  allyAriaIdle: "/assets/ally-aria-idle.png",
+  allyAriaAction: "/assets/ally-aria-action.png",
+  allyAriaRun: "/assets/ally-aria-run.png",
+  velvetDroneIdle: "/assets/enemy-velvet-drone.png",
+  velvetDroneAttack: "/assets/enemy-velvet-drone-attack.png",
+  madameNoirIdle: "/assets/boss-madame-noir.png",
+  madameNoirAttack: "/assets/boss-madame-noir-attack.png",
+  madameNoirHit: "/assets/boss-madame-noir-hit.png",
+  angelWings: "/assets/angel-wings-flight.png",
+  angelWingsGlide: "/assets/angel-wings-glide.png",
 };
 const palette = { ink: "#171222", paper: "#F3E9D9", chartreuse: "#C8D36B", red: "#C63342", cobalt: "#274C77", lilac: "#6D4B74", stone: "#B9A88B", gold: "#FFD23F", sky1: "#55C3EF", sky2: "#F5C7A9", sky3: "#8FD3E8", sky4: "#FFC8A2", shadow: "#2D1F3D", feather: "#1A1A2E", wing: "#4A3F6B" };
 
@@ -102,6 +114,24 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
     stone: material("stone", palette.stone, "#4B3C31", 0.08), gold: material("gold", palette.gold, "#7A5B10", 0.2),
     feather: material("feather", palette.feather, "#0A0A15", 0.15), wing: material("wing", palette.wing, "#2A2240", 0.1),
     spike: material("spike", palette.stone, "#3A2F25", 0.15), cage: material("cage", "#8B7355", "#4A3C2A", 0.1),
+  };
+
+  const makeCharacterSpritePlate = (name: string, url: string, width: number, height: number, parent: TransformNode, z = -0.7) => {
+    const plate = MeshBuilder.CreatePlane(name, { width, height }, scene);
+    plate.parent = parent;
+    plate.position.set(0, 0, z);
+    plate.isPickable = false;
+    const plateMat = new StandardMaterial(`${name}-material`, scene);
+    plateMat.disableLighting = true;
+    plateMat.backFaceCulling = false;
+    plateMat.useAlphaFromDiffuseTexture = true;
+    plateMat.transparencyMode = 2;
+    const tex = new Texture(url, scene, true, false);
+    tex.hasAlpha = true;
+    plateMat.diffuseTexture = tex;
+    plateMat.emissiveColor = new Color3(1, 1, 1);
+    plate.material = plateMat;
+    return { plate, plateMaterial: plateMat };
   };
 
   const skyMat = new StandardMaterial("sky-vignette", scene);
@@ -339,6 +369,10 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
   }
   const wingGlow = MeshBuilder.CreateTorus("angel-wing-aura", { diameter: 1.45, thickness: 0.06, tessellation: 24 }, scene);
   wingGlow.parent = playerRoot; wingGlow.position.set(0, 0.4, 0.12); wingGlow.rotation.x = Math.PI / 2; wingGlow.material = mats.gold; wingGlow.isVisible = false;
+  const angelWingSprite = makeCharacterSpritePlate("angel-wings-sprite", ASSETS.angelWings, 3.6, 3.2, playerRoot, 0.18);
+  angelWingSprite.plate.position.set(0, 0.35, 0.18);
+  angelWingSprite.plate.scaling.setAll(0.72);
+  angelWingSprite.plate.isVisible = false;
   const raceCarRoot = new TransformNode("race-car-root", scene);
   const raceCarBody = makeBox("race-car-body", 2.4, 0.55, 0.7, mats.red, 0, -1.15, -0.15, true, false);
   raceCarBody.parent = raceCarRoot;
@@ -523,6 +557,23 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
     // Keep the procedural enemy meshes visible. Optional sprite sheets are not required at runtime.
     const enemyPlate = MeshBuilder.CreatePlane(`enemy-realistic-plate-${kind}-${enemies.length}`, { width: w * 1.32, height: h * 1.55 }, scene);
     enemyPlate.parent = root; enemyPlate.position.set(0, 0, -0.48); enemyPlate.isVisible = false; enemyPlate.visibility = 0; enemyPlate.isPickable = false;
+    let spritePlate: Mesh | undefined;
+    let spriteMaterial: StandardMaterial | undefined;
+    let spriteTextures: Record<string, Texture> | undefined;
+    const spriteUrl = isBoss ? ASSETS.madameNoirIdle : kind === "drone" ? ASSETS.velvetDroneIdle : undefined;
+    if (spriteUrl) {
+      const sprite = makeCharacterSpritePlate(`character-sprite-${kind}-${enemies.length}`, spriteUrl, w * (isBoss ? 1.15 : 1.35), h * (isBoss ? 1.32 : 1.55), root, -0.82);
+      spritePlate = sprite.plate;
+      spriteMaterial = sprite.plateMaterial;
+      spriteTextures = { idle: spriteMaterial.diffuseTexture as Texture };
+      if (isBoss) {
+        spriteTextures.attack = new Texture(ASSETS.madameNoirAttack, scene, true, false);
+        spriteTextures.hit = new Texture(ASSETS.madameNoirHit, scene, true, false);
+      } else if (kind === "drone") {
+        spriteTextures.attack = new Texture(ASSETS.velvetDroneAttack, scene, true, false);
+      }
+      spritePlate.isVisible = true;
+    }
     if (isBoss) {
       const crown = MeshBuilder.CreateTorus(`boss-crown-${enemies.length}`, { diameter: 1.5, thickness: 0.18, tessellation: 5 }, scene);
       crown.parent = root; crown.position.set(0, 1.65, -0.58); crown.rotation.x = Math.PI / 2; crown.material = mats.gold;
@@ -531,9 +582,14 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
       const bossAura = MeshBuilder.CreateTorus(`boss-aura-${enemies.length}`, { diameter: 3.5, thickness: 0.08, tessellation: 32 }, scene);
       bossAura.parent = root; bossAura.position.set(0, 0.3, 0.15); bossAura.rotation.x = Math.PI / 2; bossAura.material = mats.lilac;
     }
+    if (spritePlate) {
+      root.getChildMeshes().forEach((child) => {
+        if (child !== spritePlate && (!isBoss || (!child.name.startsWith("boss-aura") && !child.name.startsWith("boss-crown")))) child.isVisible = false;
+      });
+    }
     applyCelOutline(root);
     if (isBoss) root.getChildMeshes().forEach((mesh) => { mesh.outlineColor = Color3.FromHexString(palette.red); mesh.outlineWidth = 0.07; });
-    enemies.push({ mesh: root as unknown as Mesh, x, y, w, h, vx: kind === "hedgehog" ? 0.85 : kind === "bat" ? 1.3 : 1.0, vy: vy0, kind, baseX: x, baseY: y, phase: enemies.length * 0.7, hp: isBoss ? 12 : 1, maxHp: isBoss ? 12 : 1, isBoss });
+    enemies.push({ mesh: root as unknown as Mesh, x, y, w, h, vx: kind === "hedgehog" ? 0.85 : kind === "bat" ? 1.3 : 1.0, vy: vy0, kind, baseX: x, baseY: y, phase: enemies.length * 0.7, hp: isBoss ? 12 : 1, maxHp: isBoss ? 12 : 1, isBoss, spritePlate, spriteMaterial, spriteTextures });
   };
   [
     [8, -2.3, "hedgehog"], [14, 0.3, "crow"], [25, 1.2, "crow"], [33, -0.5, "bat"],
@@ -636,11 +692,18 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
     aShoeR.parent = aRoot;
     const aArmL = makeBox(`ally-arm-l-${name}`, 0.17, 1.15, 0.28, mats.paper, -0.53, -0.04, -0.08, true, false);
     aArmL.parent = aRoot; aArmL.rotation.z = -0.12;
-    const aArmR = makeBox(`ally-arm-r-${name}`, 0.17, 1.15, 0.28, mats.paper, 0.53, -0.04, -0.08, true, false);
+        const aArmR = makeBox(`ally-arm-r-${name}`, 0.17, 1.15, 0.28, mats.paper, 0.53, -0.04, -0.08, true, false);
     aArmR.parent = aRoot; aArmR.rotation.z = 0.12;
-
+    const allySprite = name === "nyc" ? makeCharacterSpritePlate(`ally-sprite-${name}`, ASSETS.allyAriaIdle, 2.15, 3.2, aRoot, -1.25) : undefined;
+    const allySpriteTextures = allySprite ? { idle: allySprite.plateMaterial.diffuseTexture as Texture, run: new Texture(ASSETS.allyAriaRun, scene, true, false) } : undefined;
+    if (allySprite) {
+      allySprite.plate.position.set(0, -0.25, -1.25);
+      allySprite.plate.isVisible = true;
+      aRoot.getChildMeshes().forEach((child) => { if (child !== allySprite.plate) child.isVisible = false; });
+    }
     allies.push({
-      root: aRoot, body: aBody, head: aHead, hair: aHair, saved: false,
+
+      root: aRoot, body: aBody, head: aHead, hair: aHair, saved: false, spritePlate: allySprite?.plate, spriteMaterial: allySprite?.plateMaterial, spriteTextures: allySpriteTextures,
       x: cageX, y: cageY - 0.3, vx: 0, vy: 0, targetX: cageX, offset, phase: Math.random() * 6,
       color, hairColor, shoeColor,
       cage: { root: cageRoot, bars: cageBars, x: cageX, y: cageY },
@@ -982,6 +1045,7 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
       shakeBurst(0.05, 0.12);
     } else if (jumps === 1) {
       // Press jump again while airborne: perform a second jump with an aerial spin.
+      // This is available in the beginner stages too, so the action is easy to discover.
       vy = jumpBoostTimer > 0 ? 10.6 : 8.8;
       jumps = 2; spinActive = true; spin = 0; coyoteTime = 0;
       spawnParticles(x, y - 0.3, 14, "chart", 1.8, 0.09, 0.7, -6, 3.5);
@@ -1288,10 +1352,13 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
       }
     });
     wingGlow.isVisible = hasWings;
+    angelWingSprite.plate.isVisible = hasWings;
     if (hasWings) {
       const flap = Math.sin(wingFlapPhase) * (flying ? 0.85 : 0.25);
       wingGlow.rotation.z = flap * 0.16;
       wingGlow.scaling.setAll(1 + (flying ? 0.08 : 0));
+      angelWingSprite.plate.rotation.z = flap * 0.08;
+      angelWingSprite.plate.scaling.setAll(0.72 + (flying ? 0.04 : 0));
       (armL as Mesh).scaling = new Vector3(1, 1 + (flying ? 0.22 : 0) + flap * 0.15, 1 + Math.abs(flap) * 0.1);
       (armR as Mesh).scaling = new Vector3(1, 1 + (flying ? 0.22 : 0) + flap * 0.15, 1 + Math.abs(flap) * 0.1);
       const lift = flying ? 0.08 : 0;
@@ -1461,6 +1528,10 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
         const allyJumpWave = Math.sin(a.phase * 1.7 + a.offset * 2.4);
         if (aLanded && allyJumpWave > 0.985 && a.vy === 0) a.vy = 8.2;
         a.root.position.x = a.x; a.root.position.y = a.y;
+        if (a.spriteMaterial && a.spriteTextures) {
+          const moving = Math.abs(a.vx) > 0.35;
+          a.spriteMaterial.diffuseTexture = moving ? (a.spriteTextures.run ?? a.spriteTextures.idle) : a.spriteTextures.idle;
+        }
         const bobA = Math.abs(Math.sin(a.phase * 1.2)) * 0.05 * Math.min(1, Math.abs(a.vx) / 3);
         a.body.scaling.y = 1;
         a.body.position.y = bobA;
@@ -1620,6 +1691,9 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
       activeBoss.x = (activeBoss.baseX ?? activeBoss.x) + Math.sin(globalT * (0.55 + bossPhase * 0.18)) * (1.2 + bossPhase * 0.65);
       activeBoss.y = (activeBoss.baseY ?? activeBoss.y) + Math.sin(globalT * (1.1 + bossPhase * 0.4)) * (0.35 + bossPhase * 0.18);
       activeBoss.mesh.scaling.setAll((1 + collectionIndex * 0.08) * (1.12 + bossPhase * 0.06));
+      if (activeBoss.spriteMaterial && activeBoss.spriteTextures) {
+        activeBoss.spriteMaterial.diffuseTexture = bossPhase === 3 ? (activeBoss.spriteTextures.hit ?? activeBoss.spriteTextures.idle) : bossPhase === 2 ? (activeBoss.spriteTextures.attack ?? activeBoss.spriteTextures.idle) : activeBoss.spriteTextures.idle;
+      }
       if (bossPhase >= 2 && Math.random() < dt * (0.35 + bossPhase * 0.18)) spawnParticles(activeBoss.x, activeBoss.y + 1.2, 4, bossPhase === 3 ? "red" : "gold", 1.2, 0.08, 0.35, -2, 2.2);
     }
     if (activeBoss && x > activeBoss.x - 20 && bossShotCooldown <= 0) {
@@ -1670,6 +1744,10 @@ export async function createGameScene(canvas: HTMLCanvasElement, onSnapshot: (sn
       }
       if (enemy.x < (enemy.baseX || 0) - 4 || enemy.x > (enemy.baseX || 0) + 4) enemy.vx *= -1;
       enemy.mesh.position.x = enemy.x; enemy.mesh.position.y = enemy.y;
+      if (enemy.spriteMaterial && enemy.spriteTextures) {
+        const attacking = enemy.kind === "drone" && Math.sin(globalT * 3.1 + (enemy.phase ?? 0)) > 0.72;
+        enemy.spriteMaterial.diffuseTexture = attacking ? (enemy.spriteTextures.attack ?? enemy.spriteTextures.idle) : enemy.spriteTextures.idle;
+      }
       const dir = enemy.vx > 0 ? 1 : -1;
       (enemy.mesh as unknown as TransformNode).rotation.y = dir * 0.08;
       const playerColH = crouching ? playerHitBoxH : 1.8;
