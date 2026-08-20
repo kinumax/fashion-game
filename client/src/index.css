@@ -1018,3 +1018,237 @@ kbd { font-family: 'IBM Plex Sans', monospace; }
   .start-card-simple .start-subtitle { font-size: 10px; }
   .start-run-overlay { top: max(16px, env(safe-area-inset-top)) !important; min-width: 220px !important; min-height: 54px !important; }
 }
+
+
+/* State-Action-Verify visual pass: readable gameplay hierarchy and touch-first controls. */
+.game-shell::before {
+  background:
+    linear-gradient(180deg, rgba(6, 16, 30, .20), transparent 32%, rgba(6, 12, 24, .34)),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 5px);
+  mix-blend-mode: normal;
+  opacity: .7;
+  pointer-events: none;
+}
+.game-shell::after {
+  background: radial-gradient(ellipse at 50% 52%, transparent 38%, rgba(4, 8, 18, .34) 100%);
+  opacity: .7;
+  pointer-events: none;
+}
+.game-canvas { image-rendering: auto; filter: saturate(1.08) contrast(1.08); }
+.hud-top, .hud-secondary, .boss-meter, .fly-meter, .hud-progress { backdrop-filter: blur(8px); }
+.hud-top { padding-top: max(10px, env(safe-area-inset-top)); }
+.hud-city-wrap { min-width: 0; }
+.hud-city { max-width: min(42vw, 360px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-secondary { max-width: calc(100vw - 24px); overflow-x: auto; scrollbar-width: none; }
+.hud-secondary::-webkit-scrollbar { display: none; }
+.control-button { min-width: 58px; min-height: 52px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.control-button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.control-jump { min-width: 96px; }
+.control-attack, .control-kick { position: relative; }
+.control-attack::after, .control-kick::after { content: "HOLD"; position: absolute; right: 6px; bottom: 3px; font: 700 7px/1 'IBM Plex Mono', monospace; letter-spacing: .08em; opacity: .68; }
+@media (max-width: 700px) {
+  .hud-city { max-width: 52vw; font-size: clamp(18px, 5.2vw, 28px); }
+  .hud-mode { max-width: 58vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hud-secondary { top: 128px; padding: 5px 7px; gap: 6px; }
+  .hud-progress { top: 190px; }
+  .touch-controls { bottom: max(18px, env(safe-area-inset-bottom)); gap: 5px; }
+  .control-cluster-left, .control-cluster-right { gap: 5px; }
+  .control-button { min-width: 54px; width: 54px; height: 50px; font-size: 13px; }
+  .control-jump { min-width: 76px; width: 76px; height: 54px; font-size: 15px; }
+  .control-dash, .control-attack, .control-kick, .control-crouch { width: 56px; }
+  .control-hint { bottom: 4px; font-size: 7px; letter-spacing: .12em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .control-button, .game-shell::before, .game-shell::after { transition: none !important; animation: none !important; }
+}
+
+
+/* Intro clarity pass: keep the first decision focused on START RUN. */
+.game-shell.is-intro .hud-top,
+.game-shell.is-intro .hud-secondary,
+.game-shell.is-intro .boss-meter,
+.game-shell.is-intro .fly-meter,
+.game-shell.is-intro .hud-progress,
+.game-shell.is-intro .combo-burst,
+.game-shell.is-intro .popup-layer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.game-shell.is-intro .start-card-simple {
+  top: 46% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(520px, calc(100vw - 32px));
+  text-align: center;
+}
+.game-shell.is-intro .start-run-overlay {
+  top: max(22px, env(safe-area-inset-top)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+@media (max-width: 700px) {
+  .game-shell.is-intro .start-card-simple {
+    top: 43% !important;
+    padding: 22px 16px !important;
+  }
+  .game-shell.is-intro .start-card-simple h1 {
+    font-size: clamp(36px, 12vw, 58px) !important;
+  }
+  .game-shell.is-intro .start-card-simple .start-subtitle {
+    font-size: 10px !important;
+    letter-spacing: .14em !important;
+  }
+}
+
+
+/* Fashion Runway Worlds UI pass: preserve the runway as the hero. Gameplay HUD stays in a shallow top rail, while touch controls remain compact at the bottom so the character has the largest possible central movement field. */
+.hud-top {
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  min-height: 48px;
+  gap: 10px;
+  align-items: center;
+}
+.hud-top .brand-lockup {
+  transform: scale(.78);
+  transform-origin: left center;
+}
+.hud-city-wrap {
+  gap: 3px;
+  min-width: 0;
+}
+.hud-city {
+  font-size: clamp(15px, 2vw, 22px);
+  padding: 2px 8px;
+  line-height: 1;
+}
+.hud-mode, .hud-high { font-size: 7px; line-height: 1; }
+.hud-score {
+  min-width: 116px;
+  padding: 4px 8px;
+  gap: 4px;
+}
+.hud-score span { font-size: 7px; }
+.hud-score strong { font-size: clamp(21px, 3vw, 34px); line-height: .9; }
+.music-toggle { padding: 5px 7px; font-size: 8px; }
+.hud-secondary {
+  top: 64px;
+  left: 14px;
+  right: 14px;
+  min-height: 22px;
+  padding: 3px 8px;
+  gap: 4px 9px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 8px;
+  opacity: .9;
+}
+.hud-secondary .hud-check { display: none; }
+.hud-progress {
+  top: 91px;
+  left: 14px;
+  right: 14px;
+  height: 4px;
+}
+.fly-meter {
+  top: 100px;
+  left: 14px;
+  width: 120px;
+  height: 6px;
+}
+.combo-burst {
+  top: 104px;
+  right: 16px;
+  transform: scale(.72);
+  transform-origin: top right;
+}
+.city-stamp {
+  right: 14px;
+  bottom: 116px;
+  opacity: .42;
+}
+.city-stamp span { font-size: clamp(42px, 7vw, 96px); }
+.popup strong { font-size: clamp(17px, 2.6vw, 28px); }
+.popup-combo strong { font-size: clamp(30px, 4vw, 48px); }
+.touch-controls {
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  gap: 6px;
+}
+.control-cluster-left, .control-cluster-right { gap: 5px; }
+.control-button { width: 54px; height: 46px; }
+.control-dash { width: 64px; }
+.control-jump { width: 84px; height: 50px; }
+.control-attack, .control-kick { width: 58px; }
+.joystick { width: 78px; height: 48px; }
+.joystick-ring { width: 66px; height: 38px; }
+
+@media (max-width: 650px) {
+  .hud-top {
+    top: 7px;
+    left: 8px;
+    right: 8px;
+    grid-template-columns: auto 1fr auto;
+    gap: 5px;
+  }
+  .hud-top .brand-lockup { transform: scale(.56); width: 66px; }
+  .hud-city-wrap {
+    grid-column: auto;
+    grid-row: auto;
+    margin-top: 0;
+    align-items: flex-start;
+  }
+  .hud-city { font-size: 14px; padding: 2px 5px; }
+  .hud-mode, .hud-high { display: none; }
+  .hud-score { min-width: 86px; padding: 3px 5px; }
+  .hud-score strong { font-size: 20px; }
+  .hud-score span { font-size: 6px; }
+  .music-toggle { display: none; }
+  .hud-secondary {
+    top: 46px;
+    left: 8px;
+    right: 8px;
+    min-height: 18px;
+    padding: 2px 5px;
+    gap: 4px 7px;
+    font-size: 7px;
+  }
+  .hud-progress { top: 70px; left: 8px; right: 8px; height: 3px; }
+  .fly-meter { top: 77px; left: 8px; width: 92px; height: 5px; }
+  .combo-burst { top: 78px; right: 8px; transform: scale(.56); }
+  .combo-num { font-size: 52px; }
+  .combo-burst.mid .combo-num { font-size: 66px; }
+  .combo-burst.big .combo-num { font-size: 78px; }
+  .city-stamp { right: 4px; bottom: 96px; opacity: .22; }
+  .city-stamp span { font-size: 42px; }
+  .touch-controls { left: 6px; right: 6px; bottom: 6px; gap: 3px; }
+  .control-cluster-left, .control-cluster-right { gap: 3px; }
+  .control-button { width: 44px; height: 40px; border-width: 2px; font-size: 15px; }
+  .control-dash { width: 52px; font-size: 12px; }
+  .control-jump { width: 68px; height: 44px; font-size: 15px; }
+  .control-attack, .control-kick { width: 48px; font-size: 12px; }
+  .joystick { width: 58px; height: 42px; }
+  .joystick-ring { width: 50px; height: 32px; }
+  .joystick-knob { width: 22px; height: 22px; }
+  .control-hint { display: none; }
+}
+
+/* Beginner-stage clarity pass: keep the first two stages focused on movement and readable goals. */
+.stage-brief { display: grid; gap: 10px; max-width: 560px; margin: 12px auto 0; }
+.stage-brief-copy { margin: 0 auto; max-width: 500px; color: rgba(255,255,255,.88); font-size: clamp(12px, 1.5vw, 16px); line-height: 1.55; letter-spacing: .03em; }
+.stage-brief-controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.stage-brief-controls span { border: 1px solid rgba(255,210,63,.7); background: rgba(23,18,34,.6); padding: 7px 10px; font: 700 10px/1.2 'IBM Plex Mono', monospace; letter-spacing: .08em; }
+.stage-brief-controls b { color: #ffd23f; }
+.hud-secondary.hud-beginner { justify-content: center; gap: clamp(10px, 2vw, 22px); }
+.hud-secondary.hud-beginner .hud-check { display: inline-flex; }
+@media (max-width: 700px) {
+  .stage-brief { gap: 7px; margin-top: 7px; }
+  .stage-brief-copy { font-size: 11px; line-height: 1.4; }
+  .stage-brief-controls { gap: 5px; }
+  .stage-brief-controls span { padding: 6px 7px; font-size: 8px; }
+  .hud-secondary.hud-beginner { gap: 7px; }
+}

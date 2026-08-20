@@ -78,10 +78,18 @@ export default function GameCanvas() {
     stageIndexRef.current = snapshot.stageIndex;
   }, [snapshot.running, snapshot.stageIndex]);
   useEffect(() => {
-    const desiredIndex = snapshot.running || snapshot.finished ? snapshot.stageIndex % MUSIC_TRACKS.length : undefined;
+    // Use the section collection index so every cleared section advances the soundtrack immediately.
+    // When the finish card is visible, preview the next section's track instead of replaying the current one.
+    const desiredIndex = snapshot.running || snapshot.finished
+      ? (snapshot.collection + (snapshot.finished && !snapshot.running ? 1 : 0)) % MUSIC_TRACKS.length
+      : undefined;
     if (desiredIndex === undefined) return;
-    const next = musicTracksRef.current[desiredIndex];
+    let next = musicTracksRef.current[desiredIndex];
     const previous = musicRef.current;
+    if (!next) return;
+    if (next === previous && (snapshot.running || snapshot.finished)) {
+      next = musicTracksRef.current[(desiredIndex + 1) % MUSIC_TRACKS.length];
+    }
     if (!next || next === previous) return;
     next.loop = true;
     next.currentTime = 0; next.muted = musicMuted; next.volume = 0;
@@ -166,11 +174,12 @@ export default function GameCanvas() {
   const gameOver = snapshot.gameOver && !snapshot.running;
   const finishedRun = snapshot.finished && !snapshot.running;
   const introShown = !snapshot.running && !gameOver && !finishedRun;
+  const beginnerStage = snapshot.stageIndex < 2;
   const progressPct = Math.max(3, snapshot.progress * 100);
   const isHighScoreRun = snapshot.score > 0 && snapshot.score >= snapshot.highScore - 1 && snapshot.highScore > 0;
 
   return (
-    <main ref={shellRef} className="game-shell" data-city={snapshot.city.replace(" ", "_")} data-mode={snapshot.stageMode ?? "runway"}>
+    <main ref={shellRef} className={`game-shell ${introShown ? "is-intro" : ""}`} data-city={snapshot.city.replace(" ", "_")} data-mode={snapshot.stageMode ?? "runway"}>
       <canvas ref={canvasRef} className="game-canvas" aria-label="Fashion Runway Worlds game canvas" />
       <div className="game-grain" aria-hidden="true" />
       <div className="vignette" aria-hidden="true" />
@@ -197,19 +206,18 @@ export default function GameCanvas() {
         <button className="music-toggle" onClick={toggleMusic} aria-label={musicMuted ? "Turn music on" : "Mute music"}>{musicMuted ? "MUSIC OFF" : "MUSIC ON"}</button>
       </header>
 
-      <div className="hud-secondary">
+      <div className={`hud-secondary ${beginnerStage ? "hud-beginner" : ""}`}>
         <span className="hud-lives">LIVES <b>{"◆".repeat(Math.max(0, snapshot.lives))}{snapshot.lives <= 0 && "—"}</b></span>
         <span className="hud-combo">COMBO <b>x{snapshot.combo}</b></span>
-        <span className="hud-party">PARTY <b>{snapshot.partyCount}/4</b></span>
-        {snapshot.jumpBoost && <span className="hud-check boost-j">HIGH JUMP ↑</span>}
-        {snapshot.speedBoost && <span className="hud-check boost-s">FAST SHOES »</span>}
-        <span className="hud-check boost-b">BAG ∞</span>
-        <span className="hud-check boost-sh">SHOE ∞</span>
-        {snapshot.hasWings && <span className="hud-check boost-w">WINGS ✈</span>}
-        {snapshot.crouching && <span className="hud-check boost-cr">CROUCH ↓</span>}
+        <span className="hud-relics">COINS <b>{snapshot.relics ?? 0}</b></span>
         {snapshot.checkpoint && <span className="hud-check boost-cp">CHECKPOINT ✓</span>}
-        <span className="hud-relics">RELICS <b>{snapshot.relics ?? 0}</b></span>
-        <span className="hud-check boost-cp">RESCUE KEYS <b>{snapshot.rescueKeys ?? 0}</b></span>
+        {!beginnerStage && <>
+          <span className="hud-party">PARTY <b>{snapshot.partyCount}/4</b></span>
+          {snapshot.jumpBoost && <span className="hud-check boost-j">HIGH JUMP ↑</span>}
+          {snapshot.speedBoost && <span className="hud-check boost-s">FAST SHOES »</span>}
+          {snapshot.hasWings && <span className="hud-check boost-w">WINGS ✈</span>}
+          <span className="hud-check boost-cp">RESCUE KEYS <b>{snapshot.rescueKeys ?? 0}</b></span>
+        </>}
       </div>
       {snapshot.bossName && snapshot.bossHp !== undefined && <div className="boss-meter"><span className="boss-name">BOSS · {snapshot.bossName}</span><span className="boss-bar"><i style={{ width: `${Math.max(0, Math.min(1, (snapshot.bossHp ?? 0) / Math.max(1, snapshot.bossMaxHp ?? 1))) * 100}%` }} /></span></div>}
       <div className={`fly-meter ${snapshot.hasWings ? "visible" : ""}`}><span style={{ width: `${Math.max(0, Math.min(1, snapshot.flyFuel)) * 100}%` }} /></div>
@@ -240,17 +248,23 @@ export default function GameCanvas() {
 
       {introShown && (
         <section className="start-card intro start-card-simple" aria-label="Start game">
-          <p className="eyebrow">FASHION RUNWAY WORLDS</p>
-          <h1>WEAR THE CITY.</h1>
-          <p className="start-subtitle">12 STAGES · 4 SECTIONS EACH</p>
+          <p className="eyebrow">STAGE {String(snapshot.stageIndex + 1).padStart(2, "0")} · {snapshot.stageName ?? snapshot.city}</p>
+          <h1>{beginnerStage ? "RUN THE LOOK." : "WEAR THE CITY."}</h1>
+          {beginnerStage ? (
+            <div className="stage-brief" aria-label="Stage instructions">
+              <p className="start-subtitle">RUN · JUMP · AVOID · REACH THE GOAL</p>
+              <p className="stage-brief-copy">左右で走る。JUMPは短押しで小さく、長押しで高く。コインを集め、チェックポイントを越えてゴールゲートへ。</p>
+              <div className="stage-brief-controls"><span><b>← →</b> MOVE</span><span><b>JUMP</b> HOLD HIGHER</span></div>
+            </div>
+          ) : <p className="start-subtitle">12 STAGES · 4 SECTIONS EACH</p>}
         </section>
       )}
       {introShown && <button className="start-run-overlay" onClick={() => { startMusic(); event("frw:start"); }}>START RUN</button>}
       {(gameOver || finishedRun) && (
         <section className={`start-card game-over-card ${finishedRun ? "win" : ""}`}>
-          <p className="eyebrow">{finishedRun ? (snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? "FASHION TOUR COMPLETE" : "STAGE GATE OPEN") : "RUNWAY PAUSED"}</p>
-          <h1>{finishedRun ? (snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? "ALL STAGES CLEARED." : "ENTER THE NEXT WORLD.") : "RESET THE LOOK."}</h1>
-          <p>スコア <b>{snapshot.score.toLocaleString()}</b>。{finishedRun ? `${snapshot.partyCount}人のパーティで${snapshot.city}をクリア！${snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? `${TOTAL_STAGES}ステージコンプリート、おめでとう！` : "次の区画・ステージへ進もう。"}` : "足場を読み、もう一度挑戦しよう。"}</p>
+          <p className="eyebrow">{finishedRun ? (snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? "FASHION TOUR COMPLETE" : `STAGE ${String(snapshot.stageIndex + 1).padStart(2, "0")} CLEAR`) : "RUNWAY PAUSED"}</p>
+          <h1>{finishedRun ? (snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? "ALL STAGES CLEARED." : "NEXT STAGE READY.") : "RESET THE LOOK."}</h1>
+          <p>スコア <b>{snapshot.score.toLocaleString()}</b>。{finishedRun ? `${snapshot.city}をクリア。${snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? `${TOTAL_STAGES}ステージコンプリート。` : "次のステージでは地形と敵の配置が変わります。"}` : "足場を読み、もう一度挑戦しよう。"}</p>
           <div className="result-grid">
             <div><span>PROGRESS</span><b>{Math.round(snapshot.progress * 100)}%</b></div>
             <div><span>BEST</span><b>{snapshot.highScore.toLocaleString()}</b></div>
@@ -265,7 +279,7 @@ export default function GameCanvas() {
               <button className={snapshot.outfit === 2 ? "wardrobe-option active" : "wardrobe-option"} onClick={() => event("frw:select-outfit", 2)}>COBALT / 03</button>
             </div>
           )}
-          <button onClick={finishedRun && snapshot.collection < TOTAL_STAGE_SECTIONS - 1 ? nextStage : restart}>{finishedRun ? (snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? "PLAY AGAIN" : "NEXT SECTION") : "RESTART"}</button>
+          <button onClick={finishedRun && snapshot.collection < TOTAL_STAGE_SECTIONS - 1 ? nextStage : restart}>{finishedRun ? (snapshot.collection >= TOTAL_STAGE_SECTIONS - 1 ? "PLAY AGAIN" : (snapshot.sectionIndex === SECTIONS_PER_STAGE - 1 ? "NEXT STAGE" : "NEXT SECTION")) : "RESTART"}</button>
         </section>
       )}
 
@@ -319,7 +333,7 @@ export default function GameCanvas() {
           >JUMP</button>
         </div>
       </div>
-      <p className="control-hint">DRAG JOYSTICK · HOLD JUMP TO FLY · HOLD BAG/SHOE TO ATTACK · CROUCH · DASH · RESCUE FRIENDS · MOBILE FRIENDLY</p>
+      <p className="control-hint">{beginnerStage ? "MOVE · JUMP · COLLECT COINS · REACH THE GOAL" : "DRAG JOYSTICK · HOLD JUMP TO FLY · HOLD BAG/SHOE TO ATTACK · CROUCH · DASH"}</p>
     </main>
   );
 }
